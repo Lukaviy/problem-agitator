@@ -29,7 +29,7 @@ int cmp_range(T min, T max, T val) {
 class GameEngine_t {
 public:
 	enum MOVE {
-		LEFT, RIGHT, UP, DOWN, STOP
+		NONE, LEFT, RIGHT, UP, DOWN, STOP
 	};
 
 	struct Player_t {
@@ -38,10 +38,11 @@ public:
 		int id;
 		int place;
 		MOVE last_move;
+		bool alive;
 
-		Player_t() : score(0), id(0), place(0), last_move(STOP) { }
-		Player_t(int x, int y, int id) : score(0), pos(x, y), id(id), place(0), last_move(STOP) { }
-		Player_t(Point_t p, int id) : score(0), pos(p), id(id), place(0), last_move(STOP) { }
+		Player_t() : score(0), id(0), place(0), last_move(STOP), alive(true) { }
+		Player_t(int x, int y, int id) : score(0), pos(x, y), id(id), place(0), last_move(STOP), alive(true) { }
+		Player_t(Point_t p, int id) : score(0), pos(p), id(id), place(0), last_move(STOP), alive(true) { }
 	};
 
 	struct Players_t {
@@ -50,8 +51,9 @@ public:
 		std::vector<int> _player_places;
 
 		int _players_count;
+		int _players_alive;
 	public:
-		Players_t(int players_count) : _players_count(players_count) {
+		Players_t(int players_count) : _players_count(players_count), _players_alive(players_count) {
 			_players.resize(players_count);
 			_player_places.resize(players_count);
 
@@ -60,7 +62,7 @@ public:
 			}
 		}
 
-		Players_t() : _players_count(0) {}
+		Players_t() : _players_count(0), _players_alive(_players_count) {}
 
 		Player_t& by_place(int place) {
 			return _players[_player_places[place]];
@@ -77,8 +79,19 @@ public:
 			std::swap(_player_places[id], _player_places[new_id + 1]);
 		}
 
+		void kill_player(int id) {
+			if (_players[id].alive) {
+				_players[id].alive = false;
+				_players_alive--;
+			}
+		}
+
 		int player_count() const {
 			return _players_count;
+		}
+
+		int players_alive() const {
+			return _players_alive;
 		}
 	};
 
@@ -157,6 +170,8 @@ private:
 	Map_t _scream_areas_mask;
 	int _scream_area_size;
 	int _people_count;
+	int _current_step;
+	int _max_steps;
 
 	Players_t _players;
 public:
@@ -164,9 +179,10 @@ public:
 	class BadMap : public GameEngineException {};
 	class BadScreamAreaSize : public GameEngineException {};
 	class BadArg : public GameEngineException {};
+	class PlayerAlreadyMakedMove : public GameEngineException {};
 
-	GameEngine_t(Map_t map, int scream_area_size) 
-		: _map (map), _scream_areas_mask(map.x_size(), map.y_size()), _people_count(0)
+	GameEngine_t(Map_t map, int scream_area_size, int max_steps = INT_MAX) 
+		: _map (map), _scream_areas_mask(map.x_size(), map.y_size()), _people_count(0), _current_step(0), _max_steps(max_steps)
 	{
 		if (scream_area_size < 1) {
 			throw BadScreamAreaSize();
@@ -234,14 +250,27 @@ public:
 	}
 
 	void make_move(int player_id, MOVE move) {
+		if (_players.by_id(player_id).last_move != NONE) {
+			throw PlayerAlreadyMakedMove();
+		}
 		_players.by_id(player_id).last_move = move;
 	}
 		
-	void turn() {
+	bool step() {
+		if (_current_step > _max_steps || 
+			_players.by_place(0).score > _people_count / 2 ||
+			_players.players_alive() == 0) 
+		{
+			return false;
+		}
+
 		_scream_areas_mask.clear();
 
 		for (int player_id = 0; player_id < _players.player_count(); player_id++) {
 			Player_t& player = _players.by_id(player_id);
+			if (!player.alive) {
+				continue;
+			}
 			for (int y = -_scream_area_size; y <= _scream_area_size; y++) {
 				if (cmp_range(0, _scream_areas_mask.y_size() - 1, player.pos.y + y)) {
 					continue;
@@ -318,6 +347,8 @@ public:
 				}
 			}
 		}
+
+		return true;
 	}
 
 	const Map_t& map() const {
@@ -336,5 +367,9 @@ public:
 			throw BadArg();
 		}
 		return _players.by_place(place);
+	}
+
+	void kill_player(int player_id) {
+		_players.kill_player(player_id);
 	}
 };
