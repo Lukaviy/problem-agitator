@@ -1,7 +1,6 @@
 #pragma once
 #include <vector>
 #include <ostream>
-#include <iostream>
 
 struct Point_t {
 	int x, y;
@@ -20,10 +19,51 @@ struct Point_t {
 struct Player_t {
 	int score;
 	Point_t pos;
+	int place;
 
-	Player_t() : score(0) { }
-	Player_t(int x, int y) : score(0), pos(x, y) { }
-	Player_t(Point_t p) : score(0), pos(p) { }
+	Player_t() : score(0), place(0) { }
+	Player_t(int x, int y) : score(0), pos(x, y), place(0) { }
+	Player_t(Point_t p) : score(0), pos(p), place(0) { }
+};
+
+struct Players_t {
+private:
+	std::vector<Player_t> _players;
+	std::vector<int> _player_places;
+
+	int _players_count;
+public:
+	Players_t(int players_count) : _players_count(players_count) {
+		_players.resize(players_count);
+		_player_places.resize(players_count);
+	}
+
+	Players_t() : _players_count(0) {}
+
+	void resize(int players_count) {
+		_players_count = players_count;
+		_players.resize(players_count);
+		_player_places.resize(players_count);
+	}
+
+	Player_t& by_place(int place) {
+		return _players[_player_places[place]];
+	}
+
+	Player_t& by_id(int id) {
+		return _players[id];
+	}
+
+	void inc_score(int id) {
+		int new_id = id;
+		int new_score = ++_players[id].score;
+		while (_players[--new_id].score < new_score && new_id >= 0);
+		std::swap(_players[id], _players[new_id + 1]);
+	}
+
+	int player_count() const {
+		return _players_count;
+	}
 };
 
 template <typename T>
@@ -112,8 +152,9 @@ private:
 	Map_t _map;
 	Map_t _scream_areas_mask;
 	int _scream_area_size;
+	int _people_count;
 
-	std::vector<Player_t> _players;
+	Players_t _players;
 public:
 	enum Move_t {
 		LEFT, RIGHT, UP, DOWN, STOP
@@ -124,7 +165,7 @@ public:
 	class BadScreamAreaSize : public GameEngineException {};
 
 	GameEngine_t(Map_t map, int scream_area_size) 
-		: _map (map), _scream_areas_mask(map.x_size(), map.y_size())
+		: _map (map), _scream_areas_mask(map.x_size(), map.y_size()), _people_count(0)
 	{
 		if (scream_area_size < 1) {
 			throw BadScreamAreaSize();
@@ -156,6 +197,10 @@ public:
 					}
 					player = PlayerInfo_t{ Point_t(x, y), player_id, true };
 				}
+
+				if (cell >= '0' || cell <= '9') {
+					_people_count++;
+				}
 			}
 		}
 
@@ -179,16 +224,16 @@ public:
 		_players.resize(player_count);
 
 		for (int i = 0; i < player_count; i++) {
-			_players[players[i].player_id] = Player_t(players[i].pos);
+			_players.by_id(players[i].player_id) = Player_t(players[i].pos);
 		}
 	}
 
 	int players_count() const {
-		return _players.size();
+		return _players.player_count();
 	}
 		
 	void make_move(int player_id, Move_t move) {
-		Player_t& player = _players[player_id];
+		Player_t& player = _players.by_id(player_id);
 		_scream_areas_mask.clear();
 
 		for (int y = -_scream_area_size; y <= _scream_area_size; y++) {
@@ -212,7 +257,8 @@ public:
 					if (mask > 0) {
 						if (cell == '9') {
 							cell = '.';
-							_players[mask - 1].score++;
+							_players.inc_score(mask - 1);
+							_people_count--;
 						} else {
 							cell++;
 						}
@@ -245,7 +291,7 @@ public:
 				if (cell < '0' || cell > '9' || _scream_areas_mask.at(x, y) <= 0) {
 					continue;
 				}
-				Player_t& p = _players[mask - 1];
+				Player_t& p = _players.by_id(mask - 1);
 				if (x < p.pos.x && _map.at(x + 1, y) == '.') {
 					_map.at(x + 1, y) = cell;
 					cell = '.';
