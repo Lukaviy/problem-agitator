@@ -19,11 +19,12 @@ struct Point_t {
 struct Player_t {
 	int score;
 	Point_t pos;
+	int id;
 	int place;
 
-	Player_t() : score(0), place(0) { }
-	Player_t(int x, int y) : score(0), pos(x, y), place(0) { }
-	Player_t(Point_t p) : score(0), pos(p), place(0) { }
+	Player_t() : score(0), id(0), place(0) { }
+	Player_t(int x, int y, int id) : score(0), pos(x, y), id(id), place(0) { }
+	Player_t(Point_t p, int id) : score(0), pos(p), id(id), place(0) { }
 };
 
 struct Players_t {
@@ -36,15 +37,13 @@ public:
 	Players_t(int players_count) : _players_count(players_count) {
 		_players.resize(players_count);
 		_player_places.resize(players_count);
+
+		for (int i = 0; i < players_count; i++) {
+			_player_places[i] = i;
+		}
 	}
 
 	Players_t() : _players_count(0) {}
-
-	void resize(int players_count) {
-		_players_count = players_count;
-		_players.resize(players_count);
-		_player_places.resize(players_count);
-	}
 
 	Player_t& by_place(int place) {
 		return _players[_player_places[place]];
@@ -57,7 +56,7 @@ public:
 	void inc_score(int id) {
 		int new_id = id;
 		int new_score = ++_players[id].score;
-		while (_players[--new_id].score < new_score && new_id >= 0);
+		while (--new_id >= 0 && _players[new_id].score < new_score);
 		std::swap(_players[id], _players[new_id + 1]);
 	}
 
@@ -163,6 +162,7 @@ public:
 	class GameEngineException {};
 	class BadMap : public GameEngineException {};
 	class BadScreamAreaSize : public GameEngineException {};
+	class BadArg : public GameEngineException {};
 
 	GameEngine_t(Map_t map, int scream_area_size) 
 		: _map (map), _scream_areas_mask(map.x_size(), map.y_size()), _people_count(0)
@@ -221,10 +221,10 @@ public:
 			throw BadMap();
 		}
 
-		_players.resize(player_count);
+		_players = Players_t(player_count);
 
 		for (int i = 0; i < player_count; i++) {
-			_players.by_id(players[i].player_id) = Player_t(players[i].pos);
+			_players.by_id(players[i].player_id) = Player_t(players[i].pos, players[i].player_id);
 		}
 	}
 
@@ -311,5 +311,19 @@ public:
 
 	const Map_t& map() const {
 		return _map;
+	}
+
+	Player_t& player_by_id(int player_id) {
+		if (player_id < 0 || player_id >= _players.player_count()) {
+			throw BadArg();
+		}
+		return _players.by_id(player_id);
+	}
+
+	Player_t& player_by_place(int place) {
+		if (place < 0 || place >= _players.player_count()) {
+			throw BadArg();
+		}
+		return _players.by_place(place);
 	}
 };
