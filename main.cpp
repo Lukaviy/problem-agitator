@@ -11,7 +11,7 @@ int main() {
 
 	fin >> x_size >> y_size >> area_size;
 
-	GameEngine_t::Map_t map(x_size, y_size);
+	GameEngine::Map_t map(x_size, y_size);
 
 	for (int y = 0; y < y_size; y++) {
 		for (int x = 0; x < x_size; x++) {
@@ -19,15 +19,15 @@ int main() {
 		}
 	}
 
-	GameEngine_t engine(map, area_size);
+	GameEngine::GameEngine_t engine(map, area_size);
 
 	auto t = std::chrono::system_clock::now();
 	for (int i = 0; i < 100; i++) {
-		engine.make_move(0, GameEngine_t::LEFT);
-		engine.make_move(1, GameEngine_t::STOP);
-		engine.turn();
+		engine.make_move(0, GameEngine::LEFT);
+		engine.make_move(1, GameEngine::STOP);
+		engine.step();
 		for (int i = 0; i < engine.players_count(); i++) {
-			GameEngine_t::Player_t& player = engine.player_by_place(i);
+			GameEngine::Player_t& player = engine.player_by_place(i);
 			//std::cout << char('A' + player.id) << ' ' << player.score << std::endl;
 		}
 		//std::cout << engine.map();
